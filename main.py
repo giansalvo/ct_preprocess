@@ -114,9 +114,9 @@ def transform_to_hu(medical_image, image):
     return hu_image
 
 
-def window_image(image, window_center, window_width):
-    img_min = window_center - window_width // 2
-    img_max = window_center + window_width // 2
+def window_image(image, img_min, img_max):
+    #img_min = window_center - window_width // 2
+    #img_max = window_center + window_width // 2
     window_image = image.copy()
     window_image[window_image < img_min] = img_min
     window_image[window_image > img_max] = img_max
@@ -128,7 +128,7 @@ def remove_noise(file_path):
     medical_image = pydicom.read_file(file_path)
     image = medical_image.pixel_array
     hu_image = transform_to_hu(medical_image, image)
-    brain_image = window_image(hu_image, 40, 80)
+    lung_image = window_image(hu_image, 0, 80)
 
     # morphology.dilation creates a segmentation of the image
     # If one pixel is between the origin and the edge of a square of size
@@ -138,7 +138,7 @@ def remove_noise(file_path):
     # In this case the pixel belongs to the same class if it's between the origin
     # and the radius
 
-    segmentation = morphology.dilation(brain_image, np.ones((5, 5)))
+    segmentation = morphology.dilation(lung_image, np.ones((5, 5)))
     labels, label_nb = ndimage.label(segmentation)
     label_count = np.bincount(labels.ravel().astype(int))
 
@@ -157,7 +157,7 @@ def remove_noise(file_path):
 
     # Since the the pixels in the mask are zero's and one's
     # We can multiple the original image to only keep the brain region
-    masked_image = mask * brain_image
+    masked_image = mask * lung_image
 
     return masked_image, mask
 
@@ -215,18 +215,17 @@ def main():
     print("image.shape=" + str(image.shape))
 
     hu_image = transform_to_hu(medical_image, image)
-    brain_image = window_image(hu_image, 40, 80)
-    bone_image = window_image(hu_image, 400, 1000)
+    lung_image = window_image(hu_image, 0, 80)
+    bone_image = window_image(hu_image, -100, 900)
 
-    #display_image(brain_image)
-    #display_image(bone_image)
+    plot_samples_matplotlib([lung_image, bone_image], ["lung_image", "bone_image"])
 
     denoised_img, mask = remove_noise(DCM_FILE_PATH)
-    #plot_samples_matplotlib([image, mask, denoised_img], ["image", "mask", "denoised_img"])
+    plot_samples_matplotlib([image, mask, denoised_img], ["image", "mask", "denoised_img"])
 
     cropped_img = crop_image(denoised_img)
     padded_img = add_pad(cropped_img)
-    #plot_samples_matplotlib([denoised_img, cropped_img, padded_img], ["denoised_img", "cropped_img", "padded_img"])
+    plot_samples_matplotlib([denoised_img, cropped_img, padded_img], ["denoised_img", "cropped_img", "padded_img"])
 
     # RESAMPLING
     first_medical_image = pydicom.read_file(DCM_SLICE1)
@@ -241,6 +240,8 @@ def main():
     resampled_image = resample(first_image, image_thickness, pixel_spacing)
     t = np.squeeze(resampled_image)
     print("resampled_image.shape="+str(t.shape))
+
+    #plt.imshow(resampled_image)
 
     return
 
